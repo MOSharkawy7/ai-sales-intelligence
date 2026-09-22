@@ -1,0 +1,16 @@
+order_id,order_date,customer_id,product,category,region,quantity,unit_price,discount
+1001,2025-01-03,C001,Laptop,Electronics,Cairo,2,850,0.05
+1002,2025-01-05,C002,Mouse,Electronics,Giza,5,25,0.00
+1003,2025-01-08,C003,Desk,Furniture,Cairo,1,300,0.10
+1004,2025-01-12,C001,Keyboard,Electronics,Alexandria,2,70,0.05
+1005,2025-01-15,C004,Chair,Furniture,Giza,4,120,0.08
+1006,2025-02-02,C005,Monitor,Electronics,Cairo,2,400,0.10
+1007,2025-02-07,C002,Mouse,Electronics,Giza,8,25,0.00
+1008,2025-02-10,C006,Desk,Furniture,Alexandria,1,300,0.05
+1009,2025-02-18,C003,Laptop,Electronics,Cairo,1,850,0.00
+1010,2025-02-21,C007,Chair,Furniture,Giza,3,120,0.05
+1011,2025-03-01,C008,Keyboard,Electronics,Cairo,4,70,0.10
+1012,2025-03-05,C001,Monitor,Electronics,Alexandria,1,400,0.05
+1013,2025-03-09,C009,Desk,Furniture,Cairo,2,300,0.00
+1014,2025-03-14,C004,Laptop,Electronics,Giza,1,850,0.08
+1015,2025-03-20,C010,Chair,Furniture,Alexandria,5,120,0.10
