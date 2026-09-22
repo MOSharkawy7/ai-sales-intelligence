@@ -2,141 +2,104 @@ import joblib
 import pandas as pd
 
 from pathlib import Path
-
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score,
-)
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+
+# --------------------------------------------------
+# Paths
+# --------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-DATA_PATH = (
-    PROJECT_ROOT
-    / "ml"
-    / "data"
-    / "processed"
-    / "sales_processed.csv"
-)
+DATA_PATH = PROJECT_ROOT / "ml" / "data" / "processed" / "sales_processed.csv"
+MODELS_DIR = PROJECT_ROOT / "ml" / "models"
 
-MODELS_DIR = (
-    PROJECT_ROOT
-    / "ml"
-    / "models"
-)
+MODEL_PATH = MODELS_DIR / "sales_forecasting_model.pkl"
 
 
-def load_data() -> pd.DataFrame:
-    """Load the processed sales data."""
+# --------------------------------------------------
+# Load data
+# --------------------------------------------------
 
-    if not DATA_PATH.exists():
-        raise FileNotFoundError(
-            f"Dataset not found: {DATA_PATH}"
-        )
+def load_data():
+    df = pd.read_csv(DATA_PATH)
 
-    df = pd.read_csv(
-        DATA_PATH,
-        parse_dates=["order_date"],
-    )
+    df["order_date"] = pd.to_datetime(df["order_date"])
 
     return df
 
 
-def create_daily_dataset(
-    df: pd.DataFrame,
-) -> pd.DataFrame:
-    """Aggregate individual orders into daily sales."""
+# --------------------------------------------------
+# Create daily sales dataset
+# --------------------------------------------------
 
-    daily_sales = (
+def create_daily_dataset(df):
+    daily = (
         df.groupby("order_date")
         .agg(
             sales=("sales", "sum"),
             quantity=("quantity", "sum"),
-            orders=("order_id", "count"),
-            average_discount=("discount", "mean"),
+            orders=("order_id", "nunique"),
         )
         .reset_index()
     )
 
-    return daily_sales
+    daily = daily.sort_values("order_date")
+
+    return daily
 
 
-def create_features(
-    df: pd.DataFrame,
-) -> pd.DataFrame:
-    """Create time-based forecasting features."""
+# --------------------------------------------------
+# Create forecasting features
+# --------------------------------------------------
+
+def create_features(df):
 
     df = df.copy()
 
+    # Calendar features
     df["year"] = df["order_date"].dt.year
-
     df["month"] = df["order_date"].dt.month
-
     df["day"] = df["order_date"].dt.day
-
-    df["day_of_week"] = (
-        df["order_date"].dt.dayofweek
-    )
-
-    df["day_of_year"] = (
-        df["order_date"].dt.dayofyear
-    )
-
-    df["week_of_year"] = (
-        df["order_date"].dt.isocalendar().week
-        .astype(int)
-    )
-
-    df["is_weekend"] = (
-        df["day_of_week"] >= 5
-    ).astype(int)
+    df["day_of_week"] = df["order_date"].dt.dayofweek
+    df["day_of_year"] = df["order_date"].dt.dayofyear
+    df["week_of_year"] = df["order_date"].dt.isocalendar().week.astype(int)
+    df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
 
     # Historical sales features
+    df["sales_lag_1"] = df["sales"].shift(1)
 
-    df["sales_lag_1"] = (
-        df["sales"].shift(1)
-    )
+    df["sales_lag_7"] = df["sales"].shift(7)
 
-    df["sales_lag_7"] = (
-        df["sales"].shift(7)
-    )
+    df["sales_lag_30"] = df["sales"].shift(30)
 
-    df["sales_lag_30"] = (
-        df["sales"].shift(30)
-    )
-
-    # Rolling averages
-
+    # Rolling averages based ONLY on previous days
     df["sales_rolling_7"] = (
         df["sales"]
         .shift(1)
-        .rolling(7)
+        .rolling(window=7)
         .mean()
     )
 
     df["sales_rolling_30"] = (
         df["sales"]
         .shift(1)
-        .rolling(30)
+        .rolling(window=30)
         .mean()
     )
 
     return df
 
 
-def prepare_data(
-    df: pd.DataFrame,
-):
-    """Prepare features and target."""
+# --------------------------------------------------
+# Prepare training data
+# --------------------------------------------------
 
-    df = create_daily_dataset(df)
+def prepare_data(df):
 
     df = create_features(df)
-
-    df = df.dropna()
 
     feature_columns = [
         "year",
@@ -146,9 +109,6 @@ def prepare_data(
         "day_of_year",
         "week_of_year",
         "is_weekend",
-        "quantity",
-        "orders",
-        "average_discount",
         "sales_lag_1",
         "sales_lag_7",
         "sales_lag_30",
@@ -156,221 +116,160 @@ def prepare_data(
         "sales_rolling_30",
     ]
 
-    target_column = "sales"
+    df = df.dropna()
 
     X = df[feature_columns]
 
-    y = df[target_column]
+    y = df["sales"]
 
     return X, y, df
 
 
-def split_data(
-    X: pd.DataFrame,
-    y: pd.Series,
-):
-    """Split data chronologically."""
+# --------------------------------------------------
+# Chronological train/test split
+# --------------------------------------------------
 
-    split_index = int(
-        len(X) * 0.8
-    )
+def split_data(X, y):
+
+    split_index = int(len(X) * 0.8)
 
     X_train = X.iloc[:split_index]
-
     X_test = X.iloc[split_index:]
 
     y_train = y.iloc[:split_index]
-
     y_test = y.iloc[split_index:]
 
-    return (
-        X_train,
-        X_test,
-        y_train,
-        y_test,
-    )
+    return X_train, X_test, y_train, y_test
 
 
-def evaluate_model(
-    model,
-    X_test,
-    y_test,
-    model_name: str,
-):
-    """Evaluate a regression model."""
+# --------------------------------------------------
+# Evaluate model
+# --------------------------------------------------
 
-    predictions = model.predict(
-        X_test
-    )
+def evaluate_model(model, X_test, y_test, model_name):
 
-    mae = mean_absolute_error(
-        y_test,
-        predictions,
-    )
+    predictions = model.predict(X_test)
+
+    mae = mean_absolute_error(y_test, predictions)
 
     rmse = mean_squared_error(
         y_test,
-        predictions,
+        predictions
     ) ** 0.5
 
-    r2 = r2_score(
-        y_test,
-        predictions,
-    )
+    r2 = r2_score(y_test, predictions)
 
-    print(
-        f"\n{model_name}"
-    )
+    print(f"\n{model_name}")
+    print("-" * 40)
 
-    print(
-        f"MAE:  {mae:.2f}"
-    )
+    print(f"MAE : {mae:.2f}")
+    print(f"RMSE: {rmse:.2f}")
+    print(f"R²  : {r2:.4f}")
 
-    print(
-        f"RMSE: {rmse:.2f}"
-    )
-
-    print(
-        f"R²:   {r2:.4f}"
-    )
-
-    return {
-        "model": model,
-        "mae": mae,
-        "rmse": rmse,
-        "r2": r2,
-    }
+    return rmse
 
 
-def main() -> None:
+# --------------------------------------------------
+# Main
+# --------------------------------------------------
 
-    print(
-        "Loading processed dataset..."
-    )
+def main():
+
+    print("Loading sales data...")
 
     df = load_data()
 
-    print(
-        f"Loaded {len(df)} rows."
-    )
+    print(f"Raw records: {len(df)}")
 
-    print(
-        "Preparing forecasting dataset..."
-    )
+    # Create daily dataset
+    daily_df = create_daily_dataset(df)
 
-    X, y, prepared_df = prepare_data(
-        df
-    )
+    print(f"Daily records: {len(daily_df)}")
 
-    print(
-        f"Prepared {len(X)} daily records."
-    )
+    # Create features
+    X, y, prepared_df = prepare_data(daily_df)
 
-    (
-        X_train,
-        X_test,
-        y_train,
-        y_test,
-    ) = split_data(
-        X,
-        y,
-    )
+    print(f"Training records: {len(X)}")
 
-    print(
-        f"Training records: {len(X_train)}"
-    )
+    # Train/test split
+    X_train, X_test, y_train, y_test = split_data(X, y)
 
-    print(
-        f"Testing records: {len(X_test)}"
-    )
+    print(f"Training set: {len(X_train)}")
+    print(f"Testing set : {len(X_test)}")
 
-    # --------------------------------
+    # --------------------------------------------------
     # Linear Regression
-    # --------------------------------
+    # --------------------------------------------------
 
     linear_model = LinearRegression()
 
     linear_model.fit(
         X_train,
-        y_train,
+        y_train
     )
 
-    linear_result = evaluate_model(
+    linear_rmse = evaluate_model(
         linear_model,
         X_test,
         y_test,
-        "Linear Regression",
+        "Linear Regression"
     )
 
-    # --------------------------------
+    # --------------------------------------------------
     # Random Forest
-    # --------------------------------
+    # --------------------------------------------------
 
     random_forest = RandomForestRegressor(
         n_estimators=200,
         max_depth=12,
         random_state=42,
-        n_jobs=-1,
+        n_jobs=-1
     )
 
     random_forest.fit(
         X_train,
-        y_train,
+        y_train
     )
 
-    random_forest_result = evaluate_model(
+    rf_rmse = evaluate_model(
         random_forest,
         X_test,
         y_test,
-        "Random Forest",
+        "Random Forest"
     )
 
-    # --------------------------------
-    # Select model
-    # --------------------------------
+    # --------------------------------------------------
+    # Select best model
+    # --------------------------------------------------
 
-    results = [
-        linear_result,
-        random_forest_result,
-    ]
+    if rf_rmse < linear_rmse:
 
-    best_result = min(
-        results,
-        key=lambda result: result["rmse"],
-    )
+        best_model = random_forest
+        best_model_name = "Random Forest"
 
-    best_model = best_result["model"]
+    else:
 
-    print(
-        "\nBest model:"
-    )
+        best_model = linear_model
+        best_model_name = "Linear Regression"
 
-    print(
-        type(best_model).__name__
-    )
-
-    # --------------------------------
+    # --------------------------------------------------
     # Save model
-    # --------------------------------
+    # --------------------------------------------------
 
     MODELS_DIR.mkdir(
         parents=True,
-        exist_ok=True,
-    )
-
-    model_path = (
-        MODELS_DIR
-        / "sales_forecasting_model.pkl"
+        exist_ok=True
     )
 
     joblib.dump(
         best_model,
-        model_path,
+        MODEL_PATH
     )
 
-    print(
-        f"\nModel saved to: {model_path}"
-    )
+    print("\n" + "=" * 50)
+    print(f"Best model: {best_model_name}")
+    print(f"Model saved to: {MODEL_PATH}")
+    print("=" * 50)
 
 
 if __name__ == "__main__":
