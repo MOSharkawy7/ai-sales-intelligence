@@ -16,7 +16,7 @@ env/
 # ML
 ml/data/processed/
 ml/models/
-
+ml/reports/
 # Node
 node_modules/
 frontend/dist/
