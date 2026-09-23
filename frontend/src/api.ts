@@ -14,8 +14,28 @@ export const getSalesTrends = async () => {
   return response.data;
 };
 
+export const getSalesCategories = async () => {
+  const response = await api.get("/sales/categories");
+  return response.data;
+};
+
+export const getSalesRegions = async () => {
+  const response = await api.get("/sales/regions");
+  return response.data;
+};
+
+export const getCustomers = async () => {
+  const response = await api.get("/customers/");
+  return response.data;
+};
+
 export const getCustomerSegments = async () => {
   const response = await api.get("/customers/segments");
+  return response.data;
+};
+
+export const getAnomalies = async () => {
+  const response = await api.get("/anomalies/");
   return response.data;
 };
 
@@ -24,7 +44,7 @@ export const getAnomalySummary = async () => {
   return response.data;
 };
 
-export const getForecast = async (days = 7) => {
+export const getForecast = async (days: number = 7) => {
   const response = await api.get(`/sales/forecast?days=${days}`);
   return response.data;
 };
