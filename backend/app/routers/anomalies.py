@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from ..services.anomaly_service import (
+from backend.app.database import get_db
+from backend.app.services.anomaly_service import (
     get_anomalies,
     get_anomaly_summary,
 )
@@ -13,12 +15,14 @@ router = APIRouter(
 
 
 @router.get("/")
-def anomalies():
-
-    return get_anomalies()
+def anomalies(
+    db: Session = Depends(get_db),
+):
+    return get_anomalies(db)
 
 
 @router.get("/summary")
-def anomaly_summary():
-
-    return get_anomaly_summary()
+def anomaly_summary(
+    db: Session = Depends(get_db),
+):
+    return get_anomaly_summary(db)

@@ -1,8 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from ..services.customer_service import (
-    get_customer_segments,
+from backend.app.database import get_db
+from backend.app.services.customer_service import (
     get_customers,
+    get_customer_segments,
 )
 
 
@@ -12,13 +14,15 @@ router = APIRouter(
 )
 
 
-@router.get("/segments")
-def customer_segments():
-
-    return get_customer_segments()
-
-
 @router.get("/")
-def customers():
+def customers(
+    db: Session = Depends(get_db),
+):
+    return get_customers(db)
 
-    return get_customers()
+
+@router.get("/segments")
+def customer_segments(
+    db: Session = Depends(get_db),
+):
+    return get_customer_segments(db)

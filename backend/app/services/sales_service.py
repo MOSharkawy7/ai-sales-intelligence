@@ -1,21 +1,21 @@
-from ..data_loader import load_sales_data
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+
+from backend.app.models import Sale
 
 
-def get_sales_summary():
+def get_sales_summary(db: Session):
+    total_sales = db.query(
+        func.sum(Sale.sales)
+    ).scalar() or 0
 
-    df = load_sales_data()
+    total_orders = db.query(
+        func.count(Sale.id)
+    ).scalar() or 0
 
-    total_sales = float(
-        df["sales"].sum()
-    )
-
-    total_orders = int(
-        df["order_id"].nunique()
-    )
-
-    total_quantity = int(
-        df["quantity"].sum()
-    )
+    total_quantity = db.query(
+        func.sum(Sale.quantity)
+    ).scalar() or 0
 
     average_order_value = (
         total_sales / total_orders
@@ -24,109 +24,71 @@ def get_sales_summary():
     )
 
     return {
-        "total_sales": round(
-            total_sales,
-            2
-        ),
+        "total_sales": round(float(total_sales), 2),
         "total_orders": total_orders,
         "total_quantity": total_quantity,
         "average_order_value": round(
-            average_order_value,
+            float(average_order_value),
             2
         ),
     }
 
 
-def get_sales_trends():
-
-    df = load_sales_data()
-
-    trends = (
-        df.groupby("order_date")
-        .agg(
-            sales=("sales", "sum"),
-            orders=("order_id", "nunique"),
+def get_sales_trends(db: Session):
+    results = (
+        db.query(
+            Sale.order_date,
+            func.sum(Sale.sales).label("sales"),
         )
-        .reset_index()
-        .sort_values("order_date")
+        .group_by(Sale.order_date)
+        .order_by(Sale.order_date)
+        .all()
     )
 
     return [
         {
-            "date": row["order_date"].strftime(
-                "%Y-%m-%d"
-            ),
-            "sales": round(
-                float(row["sales"]),
-                2
-            ),
-            "orders": int(
-                row["orders"]
-            ),
+            "date": order_date,
+            "sales": round(float(sales), 2),
         }
-        for _, row in trends.iterrows()
+        for order_date, sales in results
     ]
 
 
-def get_sales_by_category():
-
-    df = load_sales_data()
-
-    result = (
-        df.groupby("category")
-        .agg(
-            sales=("sales", "sum"),
-            orders=("order_id", "nunique"),
+def get_sales_by_category(db: Session):
+    results = (
+        db.query(
+            Sale.category,
+            func.sum(Sale.sales).label("sales"),
         )
-        .reset_index()
-        .sort_values(
-            "sales",
-            ascending=False
-        )
+        .group_by(Sale.category)
+        .order_by(func.sum(Sale.sales).desc())
+        .all()
     )
 
     return [
         {
-            "category": row["category"],
-            "sales": round(
-                float(row["sales"]),
-                2
-            ),
-            "orders": int(
-                row["orders"]
-            ),
+            "category": category,
+            "sales": round(float(sales), 2),
         }
-        for _, row in result.iterrows()
+        for category, sales in results
     ]
 
 
-def get_sales_by_region():
-
-    df = load_sales_data()
-
-    result = (
-        df.groupby("region")
-        .agg(
-            sales=("sales", "sum"),
-            orders=("order_id", "nunique"),
+def get_sales_by_region(db: Session):
+    results = (
+        db.query(
+            Sale.region,
+            func.sum(Sale.sales).label("sales"),
         )
-        .reset_index()
-        .sort_values(
-            "sales",
-            ascending=False
-        )
+        .group_by(Sale.region)
+        .order_by(func.sum(Sale.sales).desc())
+        .all()
     )
 
     return [
         {
-            "region": row["region"],
-            "sales": round(
-                float(row["sales"]),
-                2
-            ),
-            "orders": int(
-                row["orders"]
-            ),
+            "region": region,
+            "sales": round(float(sales), 2),
         }
-        for _, row in result.iterrows()
+        for region, sales in results
     ]

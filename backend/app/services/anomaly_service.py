@@ -1,52 +1,37 @@
-from ..data_loader import load_anomalies
+from sqlalchemy.orm import Session
+
+from backend.app.models import SalesAnomaly
 
 
-def get_anomalies():
-
-    df = load_anomalies()
+def get_anomalies(db: Session):
+    anomalies = (
+        db.query(SalesAnomaly)
+        .order_by(SalesAnomaly.anomaly_score.asc())
+        .all()
+    )
 
     return [
         {
-            "order_id": row["order_id"],
-            "order_date": row["order_date"].strftime(
-                "%Y-%m-%d"
-            ),
-            "customer_id": row["customer_id"],
-            "product": row["product"],
-            "quantity": int(row["quantity"]),
-            "unit_price": round(
-                float(row["unit_price"]),
-                2
-            ),
-            "discount": round(
-                float(row["discount"]),
-                2
-            ),
-            "sales": round(
-                float(row["sales"]),
-                2
-            ),
-            "anomaly_score": round(
-                float(row["anomaly_score"]),
-                4
-            ),
+            "order_id": anomaly.order_id,
+            "order_date": anomaly.order_date,
+            "customer_id": anomaly.customer_id,
+            "product": anomaly.product,
+            "quantity": anomaly.quantity,
+            "unit_price": float(anomaly.unit_price),
+            "discount": float(anomaly.discount),
+            "sales": float(anomaly.sales),
+            "anomaly_score": float(anomaly.anomaly_score),
         }
-        for _, row in df.iterrows()
+        for anomaly in anomalies
     ]
 
 
-def get_anomaly_summary():
-
-    df = load_anomalies()
+def get_anomaly_summary(db: Session):
+    total_anomalies = (
+        db.query(SalesAnomaly)
+        .count()
+    )
 
     return {
-        "total_anomalies": len(df),
-        "average_anomaly_sales": round(
-            float(df["sales"].mean()),
-            2
-        ),
-        "highest_anomaly_sales": round(
-            float(df["sales"].max()),
-            2
-        ),
+        "total_anomalies": total_anomalies,
     }
